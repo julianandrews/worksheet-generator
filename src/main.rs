@@ -104,9 +104,6 @@ fn generate_pdfs(config: &Config, config_path: &str) -> Result<Vec<PathBuf>> {
         .parent()
         .unwrap_or_else(|| Path::new("."));
 
-    let stylesheet = config.stylesheet.as_deref().unwrap_or("styles.css");
-    let stylesheet_path = config_dir.join(stylesheet);
-
     let output_dir = config.output_dir.as_deref().unwrap_or("/tmp");
     let output_path = Path::new(output_dir);
 
@@ -119,16 +116,27 @@ fn generate_pdfs(config: &Config, config_path: &str) -> Result<Vec<PathBuf>> {
             page_path.file_stem().unwrap().to_string_lossy()
         ));
 
-        let status = Command::new("pandoc")
+        let mut pandoc_cmd = Command::new("pandoc");
+        pandoc_cmd
             .arg(&page_path)
             .arg("-o")
             .arg(&output_pdf)
-            .arg("--css")
-            .arg(&stylesheet_path)
             .arg("--pdf-engine")
             .arg("weasyprint")
-            .status()
-            .context("Failed to execute pandoc")?;
+            .arg("--variable")
+            .arg("geometry:margin=1in")
+            .arg("-V")
+            .arg("papersize=letter");
+
+        // Only add --css if stylesheet is specified and exists
+        if let Some(stylesheet) = &config.stylesheet {
+            let stylesheet_path = config_dir.join(stylesheet);
+            if stylesheet_path.exists() {
+                pandoc_cmd.arg("--css").arg(&stylesheet_path);
+            }
+        }
+
+        let status = pandoc_cmd.status().context("Failed to execute pandoc")?;
 
         if !status.success() {
             return Err(anyhow!("pandoc failed for file: {}", page));
