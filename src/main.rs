@@ -1,8 +1,14 @@
+mod html_gen;
+
+use std::io::Write;
+use std::path::{Path, PathBuf};
+use std::process::{Command, Stdio};
+
 use anyhow::{Context, Result, anyhow};
 use clap::Parser;
 use serde::Deserialize;
-use std::path::{Path, PathBuf};
-use std::process::Command;
+
+use html_gen::generate_html;
 
 #[derive(Debug, Deserialize, Default)]
 struct Config {
@@ -106,6 +112,11 @@ fn generate_pdfs(config: &Config, config_path: &str) -> Result<Vec<PathBuf>> {
 
     let output_dir = config.output_dir.as_deref().unwrap_or("/tmp");
     let output_path = Path::new(output_dir);
+    let stylesheet_path = config
+        .stylesheet
+        .as_ref()
+        .map(|s| config_dir.join(s))
+        .filter(|p| p.exists());
 
     let mut pdf_paths = Vec::new();
 
@@ -116,30 +127,25 @@ fn generate_pdfs(config: &Config, config_path: &str) -> Result<Vec<PathBuf>> {
             page_path.file_stem().unwrap().to_string_lossy()
         ));
 
-        let mut pandoc_cmd = Command::new("pandoc");
-        pandoc_cmd
-            .arg(&page_path)
-            .arg("-o")
-            .arg(&output_pdf)
-            .arg("--pdf-engine")
-            .arg("weasyprint")
-            .arg("--variable")
-            .arg("geometry:margin=1in")
-            .arg("-V")
-            .arg("papersize=letter");
+        // Generate HTML
+        let full_html = generate_html(&page_path, stylesheet_path.as_deref())?;
 
-        // Only add --css if stylesheet is specified and exists
-        if let Some(stylesheet) = &config.stylesheet {
-            let stylesheet_path = config_dir.join(stylesheet);
-            if stylesheet_path.exists() {
-                pandoc_cmd.arg("--css").arg(&stylesheet_path);
-            }
+        // Pipe HTML directly to weasyprint via stdin
+        let mut weasyprint_cmd = Command::new("weasyprint");
+        let mut weasyprint = weasyprint_cmd
+            .arg("-") // Read from stdin
+            .arg(&output_pdf)
+            .stdin(Stdio::piped())
+            .spawn()
+            .context("Failed to spawn weasyprint")?;
+        if let Some(mut stdin) = weasyprint.stdin.take() {
+            stdin.write_all(full_html.as_bytes())?;
         }
 
-        let status = pandoc_cmd.status().context("Failed to execute pandoc")?;
+        let status = weasyprint.wait().context("Weasyprint failed")?;
 
         if !status.success() {
-            return Err(anyhow!("pandoc failed for file: {}", page));
+            return Err(anyhow!("weasyprint failed for file: {}", page));
         }
 
         pdf_paths.push(output_pdf);
