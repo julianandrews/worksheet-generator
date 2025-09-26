@@ -1,5 +1,5 @@
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
 
 use anyhow::{Context, Result};
@@ -27,56 +27,77 @@ static COMRAK_OPTIONS: LazyLock<Options> = LazyLock::new(|| {
     options
 });
 
-pub fn generate_html(page_path: &Path, stylesheet_path: Option<&Path>) -> Result<String> {
-    // Read markdown content
-    let markdown_content = fs::read_to_string(page_path).context(format!(
-        "Failed to read markdown file: {}",
-        page_path.display()
-    ))?;
-
-    // Convert markdown to HTML
-    let generated_html = markdown_to_html(&markdown_content, &COMRAK_OPTIONS);
-    let final_html = add_section_wrappers_to_html(&generated_html)?;
-
-    // Create full HTML document with optional CSS
-    let css_content = if let Some(stylesheet_path) = stylesheet_path {
-        if stylesheet_path.exists() {
-            fs::read_to_string(stylesheet_path).context(format!(
-                "Failed to read stylesheet: {}",
-                stylesheet_path.display()
-            ))?
-        } else {
-            eprintln!(
-                "Warning: Stylesheet {} not found, proceeding without styles",
-                stylesheet_path.display()
-            );
-            String::new()
-        }
-    } else {
-        String::new()
-    };
+pub fn generate_html(page_paths: &[PathBuf], stylesheet_path: Option<&Path>) -> Result<String> {
+    let html_body = generate_html_body(page_paths)?;
+    let css_content = load_stylesheet(stylesheet_path)?;
 
     let full_html = format!(
         r#"<!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
-    <style>{}</style>
+    <style>
+        {css_content}
+        @media print {{
+            .page-break {{ page-break-before: always; }}
+        }}
+    </style>
 </head>
 <body>
-{}
+{html_body}
 </body>
-</html>"#,
-        css_content, final_html
+</html>"#
     );
 
     Ok(full_html)
+}
+
+fn generate_html_body(page_paths: &[PathBuf]) -> Result<String> {
+    let mut all_html_content = String::new();
+
+    for (i, page_path) in page_paths.iter().enumerate() {
+        let markdown_content = fs::read_to_string(page_path).context(format!(
+            "Failed to read markdown file: {}",
+            page_path.display()
+        ))?;
+
+        let generated_html = markdown_to_html(&markdown_content, &COMRAK_OPTIONS);
+        let final_html = add_section_wrappers_to_html(&generated_html)?;
+
+        if i > 0 {
+            all_html_content.push_str(r#"<div class="page-break"></div>"#);
+        }
+
+        all_html_content.push_str(&final_html);
+    }
+
+    Ok(all_html_content)
+}
+
+fn load_stylesheet(stylesheet_path: Option<&Path>) -> Result<String> {
+    if let Some(stylesheet_path) = stylesheet_path {
+        if stylesheet_path.exists() {
+            fs::read_to_string(stylesheet_path).context(format!(
+                "Failed to read stylesheet: {}",
+                stylesheet_path.display()
+            ))
+        } else {
+            eprintln!(
+                "Warning: Stylesheet {} not found, proceeding without styles",
+                stylesheet_path.display()
+            );
+            Ok(String::new())
+        }
+    } else {
+        Ok(String::new())
+    }
 }
 
 pub fn add_section_wrappers_to_html(html: &str) -> Result<String> {
     let headings = std::rc::Rc::new(std::cell::RefCell::new(vec![]));
     let buffer = std::rc::Rc::new(std::cell::RefCell::new(String::new()));
 
+    // Find all the headings and record their locations, levels, and slugs.
     rewrite_str(
         html,
         RewriteStrSettings {
@@ -130,7 +151,7 @@ pub fn add_section_wrappers_to_html(html: &str) -> Result<String> {
         }
 
         // Open new section before this heading
-        result.push_str(&format!("\n<div class=\"{}\">\n", slug));
+        result.push_str(&format!("\n<div class=\"{slug}\">\n"));
 
         // Update stack
         header_stack.push((level, slug.clone()));
