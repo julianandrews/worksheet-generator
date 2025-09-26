@@ -8,7 +8,7 @@ use serde::Deserialize;
 #[derive(Parser, Debug)]
 #[command(version, about, author)]
 pub struct Args {
-    /// Path to config file (YAML)
+    /// Path to config file
     pub config: Option<PathBuf>,
 
     /// Output file
@@ -24,11 +24,11 @@ pub struct Args {
     )]
     pub output_format: OutputFormat,
 
-    /// Markdown files to process (overrides config)
+    /// Markdown files to process
     #[arg(short, long, value_name = "FILE", num_args = 1..)]
     pub pages: Vec<PathBuf>,
 
-    /// Stylesheet to use (overrides config)
+    /// Stylesheet to use
     #[arg(short, long, value_name = "FILE")]
     pub stylesheet: Option<PathBuf>,
 }
