@@ -6,21 +6,17 @@ structured documentation you want in a printable format.
 
 ## Features
 
-- Markdown to PDF conversion using Pandoc and WeasyPrint
-- Automatic printing with configurable options  
+- Markdown to PDF conversion using WeasyPrint
 - Customizable CSS styling
 - Flexible configuration via YAML files or command-line arguments
+- Page breaks between multiple input files
 
 ## Installation
 
 ### Prerequisites
 
 - Rust toolchain (install via [rustup](https://rustup.rs/))
-- System dependencies:
-  - `pandoc`
-  - `weasyprint` (PDF engine for pandoc)
-  - `pdfunite` (usually comes with poppler-utils)
-  - `lp` (printing, usually pre-installed on Linux)
+- `weasyprint` (if outputting to PDF)
 
 ### Building from Source
 
@@ -45,10 +41,29 @@ worksheet-generator --pages workout.md --pages self-care.md --stylesheet custom.
 worksheet-generator config.yaml
 ```
 
-### Generate without Printing
+### Generate HTML instead of a PDF
 
 ```bash
-worksheet-generator --generate-only config.yaml
+worksheet-generator --format html config.yaml
+```
+
+### Path Resolution
+
+- CLI paths are relative to the current working directory
+- Config file paths are relative to the config file's directory
+- Absolute paths are supported in both contexts
+
+### Git-Based Workflow
+
+This tool works perfectly with version-controlled Markdown repositories. Just
+store your config and stylesheet with the markdown files:
+
+```
+fitness-repo/
+├── config.yaml
+├── styles.css
+├── weekly-workout.md
+├── progress-tracker.md
 ```
 
 ## Config File
@@ -67,20 +82,18 @@ pages:
     - weekly-workout.md
     - progress-tracker.md
 stylesheet: styles.css
-output_dir: /tmp
-lp_options: "-o media=A4 -o fit-to-page"
+output_file: workout.pdf
+output_format: pdf
 ```
 
 ## Custom Styling
 
-Note: While the generator works without a custom stylesheet (using Pandoc's
-default template), you may see some harmless warnings from WeasyPrint about
-unsupported CSS properties. For the cleanest experience, we recommend providing
-your own stylesheet. If the default template warnings bother you and you'd like
-a cleaner built-in solution, please open an issue on GitHub! I'm far too lazy
-to fix this without at least *some* evidence that someone cares.
-
-Create a `style.css` file to customize the PDF appearance:
+Create a `style.css` file to customize the PDF appearance. The generator
+automatically wraps each section in `div` elements with CSS classes based on
+your heading hierarchy, making it easy to target specific parts of your
+document. For example, content under a `## Monday` heading gets the `monday`
+class. Use `--format html` to generate an HTML preview for testing your styles
+before creating the final PDF.
 
 ```css
 @page {
@@ -105,5 +118,14 @@ table {
 th, td {
   border: 1px solid #666;
   padding: 5px;
+}
+
+/* Style Monday headings with extra energy! */
+.monday h2 {
+  color: #ff6b6b;
+}
+
+.monday table {
+  border-color: #ff6b6b;  /* Coordinated tables */
 }
 ```
