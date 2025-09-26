@@ -21,7 +21,7 @@ structured documentation you want in a printable format.
 ### Building from Source
 
 ```bash
-git clone https://github.com/yourusername/worksheet-generator
+git clone https://github.com/julianandrews/worksheet-generator
 cd worksheet-generator
 cargo build --release
 cp target/release/worksheet-generator ~/.local/bin/
@@ -32,7 +32,7 @@ cp target/release/worksheet-generator ~/.local/bin/
 ### Command-Line Only
 
 ```bash
-worksheet-generator --pages workout.md --pages self-care.md --stylesheet custom.css
+worksheet-generator --pages workout.md --pages self-care.md --stylesheet custom.css -o workout.pdf
 ```
 
 ### With Config File
@@ -63,7 +63,7 @@ fitness-repo/
 ├── config.yaml
 ├── styles.css
 ├── weekly-workout.md
-├── progress-tracker.md
+└── progress-tracker.md
 ```
 
 ## Config File
