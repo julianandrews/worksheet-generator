@@ -27,6 +27,25 @@ cargo build --release
 cp target/release/worksheet-generator ~/.local/bin/
 ```
 
+### Nix
+
+This repository is a flake. Run, build, or install it directly:
+
+```bash
+nix run github:julianandrews/worksheet-generator -- --help
+nix build
+nix profile install .
+```
+
+The package wraps the binary with `weasyprint` from nixpkgs on its runtime
+`PATH`, so PDF output works without a separate system installation. The dev
+shell includes `weasyprint` as well:
+
+```bash
+nix develop
+cargo run -- --help
+```
+
 ## Usage
 
 ### Command-Line Only
